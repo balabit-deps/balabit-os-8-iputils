@@ -1,0 +1,30 @@
+os: linux
+dist: trusty
+sudo: false
+language: python
+python: 3.6
+cache:
+  apt: true
+  ccache: true
+addons:
+  apt:
+    packages:
+      - "python3-pip"
+      - "libcap-dev"
+      - "libidn2-0-dev"
+      - "nettle-dev"
+      - "xsltproc"
+      - "docbook-xsl-ns"
+matrix:
+  include:
+    - env: CC=gcc
+    - env: CC=clang
+install:
+  - export NINJA_LATEST="https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip"
+  - wget "$NINJA_LATEST"
+  - unzip -q ninja-linux.zip -d build
+  - export PATH="$PWD/build:$PATH"
+  - pip3 install meson
+script:
+  - meson builddir
+  - ninja -C builddir
