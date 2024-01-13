@@ -1,3 +1,9 @@
+iputils (3:20190709-3ubuntu1bb1) focal; urgency=medium
+
+  * Balabit patched version
+
+ -- Balabit Platform Team <devnull@dev.null>  Sat, 13 Jan 2024 16:21:02 +0100
+
 iputils (3:20190709-3ubuntu1) focal; urgency=medium
 
   * debian/patches/git_revert_strict_pattern_matching.patch:
