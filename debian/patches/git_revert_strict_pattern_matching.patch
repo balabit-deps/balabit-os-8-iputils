@@ -1,0 +1,115 @@
+From dff5d82dadab1b04400b2f9e1eb10a0d124868ed Mon Sep 17 00:00:00 2001
+From: Petr Vorel <pvorel@suse.cz>
+Date: Thu, 15 Apr 2021 07:48:03 +0200
+Subject: [PATCH] Revert "Add strict pattern matching on response when pattern
+ was provided"
+
+This reverts commit f7710a17c4d5994313a64583f511bcdb9559f2a9.
+
+Commit broke report of truncated packets:
+$ ping -c2 -s100 google.com
+PING google.com (142.250.185.238) 100(128) bytes of data.
+
+Running ping from both s20161105 (which does not contain f7710a1) and
+reverted f7710a1 on master reports truncated packets:
+
+$ ping -c2 -s100 google.com
+PING google.com (142.250.185.238) 100(128) bytes of data.
+76 bytes from fra16s53-in-f14.1e100.net (142.250.185.238): icmp_seq=1 ttl=116 (truncated)
+76 bytes from fra16s53-in-f14.1e100.net (142.250.185.238): icmp_seq=2 ttl=116 (truncated)
+
+There was unreachable code in gather_statistics() because
+contains_pattern_in_payload() added in f7710a1 always found a mismatch
+first. Due that all of these did not work:
+* updating counters for statistics generation
+* keeping track of timestamps and time-of-flight using the first section
+  of the payload
+* checking for duplicate replies and report them
+* printing basic info about the reply
+* printing "(truncated)" if the reply was truncated
+* checking the checksum
+* validating the rest of the payload (bytes 17 and above) against the
+  ICMP request that was sent, and report any differences
+
+Fixes: f7710a1 ("Add strict pattern matching on response when pattern was provided")
+Closes: https://github.com/iputils/iputils/issues/320
+Closes: https://github.com/iputils/iputils/pull/331
+
+Reported-by: Paul Swirhun <paulswirhun@gmail.com>
+Suggested-by: Paul Swirhun <paulswirhun@gmail.com>
+Reviewed-by: Noah Meyerhans <noahm@debian.org>
+Signed-off-by: Petr Vorel <pvorel@suse.cz>
+---
+ ping.c         |  2 --
+ ping.h         |  1 -
+ ping6_common.c |  2 --
+ ping_common.c  | 18 ------------------
+ 4 files changed, 23 deletions(-)
+
+Index: iputils-20190709/ping6_common.c
+===================================================================
+--- iputils-20190709.orig/ping6_common.c
++++ iputils-20190709/ping6_common.c
+@@ -1211,8 +1211,6 @@ ping6_parse_reply(socket_st *sock, struc
+ 	if (icmph->icmp6_type == ICMP6_ECHO_REPLY) {
+ 		if (!is_ours(sock, icmph->icmp6_id))
+ 			return 1;
+-	       if (!contains_pattern_in_payload((uint8_t *)(icmph + 1)))
+-			return 1;	/* 'Twas really not our ECHO */
+ 		if (gather_statistics((uint8_t *)icmph, sizeof(*icmph), cc,
+ 				      ntohs(icmph->icmp6_seq),
+ 				      hops, 0, tv, pr_addr(from, sizeof *from),
+Index: iputils-20190709/ping.c
+===================================================================
+--- iputils-20190709.orig/ping.c
++++ iputils-20190709/ping.c
+@@ -1033,8 +1033,6 @@ ping4_parse_reply(struct socket_st *sock
+ 	if (icp->type == ICMP_ECHOREPLY) {
+ 		if (!is_ours(sock, icp->un.echo.id))
+ 			return 1;			/* 'Twas not our ECHO */
+-		if (!contains_pattern_in_payload((uint8_t *)(icp + 1)))
+-			return 1;			/* 'Twas really not our ECHO */
+ 		if (gather_statistics((uint8_t *)icp, sizeof(*icp), cc,
+ 				      ntohs(icp->un.echo.sequence),
+ 				      reply_ttl, 0, tv, pr_addr(from, sizeof *from),
+Index: iputils-20190709/ping_common.c
+===================================================================
+--- iputils-20190709.orig/ping_common.c
++++ iputils-20190709/ping_common.c
+@@ -607,24 +607,6 @@ void setup(socket_st *sock)
+ 	}
+ }
+ 
+-/*
+- * Return 0 if pattern in payload point to be ptr did not match the pattern that was sent  
+- */
+-int contains_pattern_in_payload(uint8_t *ptr)
+-{
+-	int i;
+-	uint8_t *cp, *dp;
+- 
+-	/* check the data */
+-	cp = ((u_char *)ptr) + sizeof(struct timeval);
+-	dp = &outpack[8 + sizeof(struct timeval)];
+-	for (i = sizeof(struct timeval); i < datalen; ++i, ++cp, ++dp) {
+-		if (*cp != *dp)
+-			return 0;
+-	}
+-	return 1;
+-}
+-
+ void main_loop(ping_func_set_st *fset, socket_st *sock, uint8_t *packet, int packlen)
+ {
+ 	char addrbuf[128];
+Index: iputils-20190709/ping.h
+===================================================================
+--- iputils-20190709.orig/ping.h
++++ iputils-20190709/ping.h
+@@ -304,7 +304,6 @@ extern ping_func_set_st ping4_func_set;
+ extern int pinger(ping_func_set_st *fset, socket_st *sock);
+ extern void sock_setbufs(socket_st *, int alloc);
+ extern void setup(socket_st *);
+-extern int contains_pattern_in_payload(uint8_t *ptr);
+ extern void main_loop(ping_func_set_st *fset, socket_st*, uint8_t *buf, int buflen) __attribute__((noreturn));
+ extern void finish(void) __attribute__((noreturn));
+ extern void status(void);

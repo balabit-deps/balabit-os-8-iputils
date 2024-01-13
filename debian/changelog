@@ -1,3 +1,11 @@
+iputils (3:20190709-3ubuntu1) focal; urgency=medium
+
+  * debian/patches/git_revert_strict_pattern_matching.patch:
+    - cherrypick of an upstream revert of a buggy commit which was leading
+      to incorrect ping statistics on truncated packets (lp: #1964506)
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Tue, 13 Sep 2022 21:06:15 +0200
+
 iputils (3:20190709-3bb1) focal; urgency=medium
 
   * arping: fix -f quit on first reply regression
